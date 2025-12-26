@@ -6,7 +6,6 @@ by forwarding A2A messages to n8n webhooks.
 """
 
 import json
-import re
 import asyncio
 import time
 import uuid
@@ -96,7 +95,7 @@ class N8nAgentAdapter(BaseAgentAdapter):
                     txt = getattr(item, "text", None)
                     if txt and isinstance(txt, str) and txt.strip():
                         text_parts.append(txt.strip())
-                user_message = self._smart_join(text_parts)
+                user_message = self._join_text_parts(text_parts)
 
         payload: Dict[str, Any] = {
             "message": user_message,
@@ -108,19 +107,14 @@ class N8nAgentAdapter(BaseAgentAdapter):
         return payload
 
     @staticmethod
-    def _smart_join(parts: list[str]) -> str:
+    def _join_text_parts(parts: list[str]) -> str:
         """
-        Join text parts without introducing spaces before punctuation,
-        and with normalized single spaces elsewhere.
+        Join text parts into a single string.
         """
         if not parts:
             return ""
         text = " ".join(p for p in parts if p)
-        # Collapse multiple spaces
-        text = re.sub(r"\s+", " ", text)
-        # Remove any space(s) before common punctuation
-        text = re.sub(r"\s+([,.;:!?%])", r"\1", text)
-        return text.strip()
+        return " ".join(p.strip() for p in parts if p).strip()
 
     # ---------- Framework call ----------
 
