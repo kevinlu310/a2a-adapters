@@ -117,6 +117,11 @@ class N8nAgentAdapter(BaseAgentAdapter):
                         text_parts.append(txt.strip())
                 user_message = self._join_text_parts(text_parts)
 
+        # Extract context_id from the message (used for multi-turn conversation tracking)
+        context_id = None
+        if hasattr(params, "message") and params.message:
+            context_id = getattr(params.message, "context_id", None)
+
         # Build payload with custom template support
         payload: Dict[str, Any] = {
             **self.payload_template,  # Start with template (e.g., {"name": "A2A Agent"})
@@ -126,9 +131,12 @@ class N8nAgentAdapter(BaseAgentAdapter):
         # Add metadata only if not using custom template
         if not self.payload_template:
             payload["metadata"] = {
-                "session_id": getattr(params, "session_id", None),
-                "context": getattr(params, "context", None),
+                "context_id": context_id,
             }
+        else:
+            # With custom template, add context_id at root if not already present
+            if "context_id" not in payload:
+                payload["context_id"] = context_id
 
         return payload
 
@@ -246,9 +254,15 @@ class N8nAgentAdapter(BaseAgentAdapter):
             # Fallback for unexpected types
             response_text = str(framework_output)
 
+        # Preserve context_id from the request for multi-turn conversation tracking
+        context_id = None
+        if hasattr(params, "message") and params.message:
+            context_id = getattr(params.message, "context_id", None)
+
         return Message(
             role=Role.agent,
             message_id=str(uuid.uuid4()),
+            context_id=context_id,
             parts=[Part(root=TextPart(text=response_text))],
         )
 
