@@ -1,30 +1,119 @@
 # Contributing to A2A Adapters
 
-Thank you for your interest in contributing to the A2A Adapters project! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to the A2A Adapters project! 🎉
+
+This document provides guidelines and instructions for contributing. Whether you're fixing bugs, adding features, improving documentation, or creating new adapters, your contributions are welcome and appreciated!
+
+## 📋 Table of Contents
+
+- [Code of Conduct](#code-of-conduct)
+- [How to Contribute](#how-to-contribute)
+- [Development Setup](#development-setup)
+- [Coding Standards](#coding-standards)
+- [Pull Request Process](#pull-request-process)
+- [Adding New Adapters](#adding-a-new-framework-adapter)
+- [Release Process](#release-process)
 
 ## Code of Conduct
 
-This project adheres to a code of conduct. By participating, you are expected to uphold this code. Please be respectful and considerate in your interactions.
+This project adheres to a code of conduct. By participating, you are expected to:
+
+- Be respectful and considerate in your interactions
+- Welcome newcomers and help them learn
+- Focus on what is best for the community
+- Show empathy towards other community members
+
+We are committed to providing a welcoming and inspiring community for all.
 
 ## How to Contribute
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/hybro-ai/a2a-adapter/issues)
-2. If not, create a new issue with:
-   - Clear title and description
-   - Steps to reproduce
-   - Expected vs actual behavior
-   - Environment details (Python version, OS, etc.)
-   - Code samples if applicable
+**Before reporting a bug:**
+
+1. ✅ Check if the bug has already been reported in [Issues](https://github.com/hybro-ai/a2a-adapter/issues)
+2. ✅ Search closed issues - it might have been fixed already
+3. ✅ Try to reproduce the bug with the latest version
+
+**When creating a bug report, include:**
+
+- **Clear title** - Summarize the issue in one line
+- **Description** - What happened vs what you expected
+- **Steps to reproduce** - Minimal code example that demonstrates the bug
+- **Environment details**:
+  - Python version (`python --version`)
+  - OS and version
+  - Package version (`pip show a2a-adapter`)
+  - Framework versions (if applicable)
+- **Error messages** - Full traceback if available
+- **Screenshots** - If applicable
+
+**Example bug report:**
+
+````markdown
+**Describe the bug**
+The n8n adapter times out after 10 seconds even when timeout is set to 60.
+
+**To Reproduce**
+
+```python
+adapter = await load_a2a_agent({
+    "adapter": "n8n",
+    "webhook_url": "...",
+    "timeout": 60
+})
+```
+````
+
+**Expected behavior**
+Should wait up to 60 seconds before timing out.
+
+**Environment**
+
+- Python 3.11.5
+- macOS 14.0
+- a2a-adapter 0.1.0
+
+````
 
 ### Suggesting Features
 
-1. Check [Issues](https://github.com/hybro-ai/a2a-adapter/issues) for existing feature requests
-2. Create a new issue with:
-   - Clear use case description
-   - Proposed API or implementation approach
-   - Potential impact on existing code
+**Before suggesting a feature:**
+
+1. ✅ Check [Issues](https://github.com/hybro-ai/a2a-adapter/issues) for existing feature requests
+2. ✅ Consider if it fits the project's scope (A2A protocol adapter SDK)
+3. ✅ Think about the API design and backward compatibility
+
+**When suggesting a feature, include:**
+
+- **Use case** - Why is this feature needed?
+- **Proposed API** - How would users interact with it?
+- **Implementation approach** - High-level design (optional)
+- **Alternatives considered** - Other ways to solve the problem
+- **Impact** - Breaking changes? New dependencies?
+
+**Example feature request:**
+
+```markdown
+**Feature: AutoGen Adapter**
+
+**Use case**
+Enable AutoGen multi-agent systems to communicate via A2A protocol.
+
+**Proposed API**
+```python
+adapter = await load_a2a_agent({
+    "adapter": "autogen",
+    "group_chat": autogen_group_chat_instance
+})
+````
+
+**Benefits**
+
+- Enables AutoGen agents in A2A ecosystems
+- Follows existing adapter pattern
+
+````
 
 ### Adding a New Framework Adapter
 
@@ -68,9 +157,9 @@ class {Framework}AgentAdapter(BaseAgentAdapter):
     ) -> Message:
         # Convert framework output to A2A Message
         pass
-    
+
     # Optional: Add handle_stream() if framework supports streaming
-```
+````
 
 #### 2. Update the Loader
 
@@ -79,19 +168,19 @@ Add your adapter to `a2a_adapter/loader.py`:
 ```python
 elif adapter_type == "{framework}":
     from .integrations.{framework} import {Framework}AgentAdapter
-    
+
     # Validate required config
     required_param = config.get("required_param")
     if not required_param:
         raise ValueError("{framework} adapter requires 'required_param' in config")
-    
+
     return {Framework}AgentAdapter(
         required_param=required_param,
         optional_param=config.get("optional_param", default_value),
     )
 ```
 
-#### 3. Update Integrations __init__
+#### 3. Update Integrations **init**
 
 Add to `a2a_adapter/integrations/__init__.py`:
 
@@ -136,12 +225,12 @@ async def main():
         "adapter": "{framework}",
         # ... config ...
     })
-    
+
     card = AgentCard(
         name="{Framework} Agent",
         description="...",
     )
-    
+
     serve_agent(agent_card=card, adapter=adapter, port=800X)
 
 if __name__ == "__main__":
@@ -176,30 +265,78 @@ async def test_{framework}_adapter_basic():
 
 ### Submitting Pull Requests
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pytest`)
-5. Run linters (`black .`, `ruff check .`)
-6. Commit with clear messages (`git commit -m 'Add amazing feature'`)
-7. Push to your fork (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+**Before submitting:**
+
+1. ✅ Fork the repository
+2. ✅ Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. ✅ Make your changes
+4. ✅ Run tests (`pytest`)
+5. ✅ Run linters (`black .`, `ruff check .`)
+6. ✅ Update documentation if needed
+7. ✅ Ensure all tests pass
+
+**PR Process:**
+
+1. **Push to your fork** (`git push origin feature/amazing-feature`)
+2. **Open a Pull Request** on GitHub
+3. **Fill out the PR template** (see below)
+4. **Wait for review** - Maintainers will review your PR
+5. **Address feedback** - Make requested changes
+6. **Get approval** - Once approved, your PR will be merged!
+
+#### PR Template
+
+When opening a PR, use this template:
+
+```markdown
+## Description
+
+Brief description of what this PR does.
+
+## Type of Change
+
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Related Issues
+
+Fixes #123
+Related to #456
+
+## Testing
+
+- [ ] Added tests for new functionality
+- [ ] All existing tests pass
+- [ ] Tested manually with examples
+
+## Checklist
+
+- [ ] Code follows project style guidelines
+- [ ] Self-review completed
+- [ ] Comments added for complex code
+- [ ] Documentation updated
+- [ ] No new warnings generated
+- [ ] Tests added/updated
+```
 
 #### PR Guidelines
 
-- Keep changes focused and atomic
-- Include tests for new functionality
-- Update documentation as needed
-- Ensure all tests pass
-- Follow existing code style
-- Write clear commit messages
+- ✅ **Keep changes focused** - One feature/fix per PR
+- ✅ **Include tests** - New functionality must have tests
+- ✅ **Update docs** - README, docstrings, or examples
+- ✅ **Ensure tests pass** - All CI checks must pass
+- ✅ **Follow code style** - Use Black, Ruff, and type hints
+- ✅ **Write clear commits** - Use conventional commit format
+- ✅ **Keep PRs small** - Easier to review and merge
 
 ## Development Setup
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/hybro-ai/a2a-adapter.git
+git clone git@github.com:hybroai/a2a-adapter.git
 cd a2a-adapter
 ```
 
@@ -285,20 +422,20 @@ a2a-adapter/
 def function_name(param1: str, param2: int) -> bool:
     """
     Short description of function.
-    
+
     Longer description if needed, explaining the purpose,
     behavior, and any important details.
-    
+
     Args:
         param1: Description of param1
         param2: Description of param2
-        
+
     Returns:
         Description of return value
-        
+
     Raises:
         ValueError: When something goes wrong
-        
+
     Example:
         >>> result = function_name("test", 42)
         >>> print(result)
@@ -317,7 +454,7 @@ def function_name(param1: str, param2: int) -> bool:
 
 ### Commit Messages
 
-Follow conventional commits format:
+**Follow [Conventional Commits](https://www.conventionalcommits.org/) format:**
 
 ```
 type(scope): brief description
@@ -327,36 +464,176 @@ Longer explanation if needed
 Fixes #123
 ```
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+**Commit Types:**
 
-Examples:
-- `feat(langchain): add streaming support`
-- `fix(n8n): handle timeout errors properly`
-- `docs(readme): update installation instructions`
+- `feat` - New feature
+- `fix` - Bug fix
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting, etc.)
+- `refactor` - Code refactoring
+- `test` - Adding or updating tests
+- `chore` - Maintenance tasks
+- `perf` - Performance improvements
+- `ci` - CI/CD changes
+
+**Scopes:** `n8n`, `crewai`, `langchain`, `callable`, `loader`, `client`, `docs`, `tests`, etc.
+
+**Good Examples:**
+
+```bash
+feat(langchain): add streaming support
+fix(n8n): handle timeout errors properly
+docs(readme): update installation instructions
+test(adapter): add tests for error handling
+refactor(loader): simplify adapter loading logic
+```
+
+**Bad Examples:**
+
+```bash
+# Too vague
+fix: bug fix
+update: changes
+# Missing scope
+feat: add new feature
+# Not following format
+Fixed the bug in n8n adapter
+```
 
 ## Release Process
 
-(For maintainers)
+**(For maintainers only)**
 
-1. Update version in `pyproject.toml` and `a2a_adapter/__init__.py`
-2. Update CHANGELOG.md
-3. Create git tag: `git tag v0.1.0`
-4. Push tag: `git push origin v0.1.0`
-5. Build package: `python -m build`
-6. Upload to PyPI: `twine upload dist/*`
+### Pre-Release Checklist
 
-## Getting Help
+- [ ] All tests passing
+- [ ] Documentation updated
+- [ ] CHANGELOG.md updated
+- [ ] Version bumped in `pyproject.toml` and `a2a_adapter/__init__.py`
+- [ ] Release notes prepared
 
-- 📚 Read the [README](README.md) and [ARCHITECTURE](ARCHITECTURE.md)
-- 💬 Join [Discussions](https://github.com/hybro-ai/a2a-adapter/discussions)
-- 🐛 Check [Issues](https://github.com/hybro-ai/a2a-adapter/issues)
-- 📧 Contact maintainers
+### Release Steps
 
-## License
+1. **Update version**
+
+   ```bash
+   # Update pyproject.toml
+   version = "0.1.1"
+
+   # Update a2a_adapter/__init__.py
+   __version__ = "0.1.1"
+   ```
+
+2. **Update CHANGELOG.md**
+
+   ```markdown
+   ## [0.1.1] - 2024-01-15
+
+   - Added: New feature X
+   - Fixed: Bug Y
+   ```
+
+3. **Create release commit**
+
+   ```bash
+   git add pyproject.toml a2a_adapter/__init__.py CHANGELOG.md
+   git commit -m "chore: release v0.1.1"
+   ```
+
+4. **Create and push tag**
+
+   ```bash
+   git tag v0.1.1
+   git push origin main --tags
+   ```
+
+5. **Build and publish to PyPI**
+
+   ```bash
+   python -m build
+   twine upload dist/*
+   ```
+
+6. **Create GitHub Release**
+   - Go to GitHub Releases
+   - Create new release from tag
+   - Copy CHANGELOG entry
+   - Publish release
+
+### Versioning
+
+We follow [Semantic Versioning](https://semver.org/):
+
+- **MAJOR** - Breaking changes
+- **MINOR** - New features (backward compatible)
+- **PATCH** - Bug fixes (backward compatible)
+
+## 🆘 Getting Help
+
+**Need help? We're here for you!**
+
+- 📚 **Documentation** - Read [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md)
+- 🐛 **Issues** - Check [existing issues](https://github.com/hybro-ai/a2a-adapter/issues) or create a new one
+- 💬 **Discussions** - Ask questions in [GitHub Discussions](https://github.com/hybro-ai/a2a-adapter/discussions)
+- 📧 **Contact** - Reach out to maintainers via GitHub
+
+## 📝 Issue and PR Templates
+
+We recommend creating GitHub issue and PR templates for better organization:
+
+### Issue Template (`.github/ISSUE_TEMPLATE/bug_report.md`)
+
+```markdown
+**Describe the bug**
+A clear description of what the bug is.
+
+**To Reproduce**
+Steps to reproduce the behavior.
+
+**Expected behavior**
+What you expected to happen.
+
+**Environment**
+
+- Python version:
+- OS:
+- Package version:
+- Framework versions:
+
+**Additional context**
+Any other relevant information.
+```
+
+### Feature Request Template (`.github/ISSUE_TEMPLATE/feature_request.md`)
+
+```markdown
+**Is your feature request related to a problem?**
+A clear description of the problem.
+
+**Describe the solution you'd like**
+A clear description of what you want to happen.
+
+**Describe alternatives you've considered**
+Other solutions or features you've considered.
+
+**Additional context**
+Any other relevant information.
+```
+
+## 📄 License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
 
+## 🙏 Recognition
+
+Contributors will be:
+
+- Listed in the README (if desired)
+- Credited in release notes
+- Appreciated by the community! 🎉
+
 ---
 
-Thank you for contributing to A2A Adapters! 🎉
+**Thank you for contributing to A2A Adapters!** 🎉
 
+Your contributions make this project better for everyone. We appreciate your time and effort!

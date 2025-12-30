@@ -1,11 +1,20 @@
 # A2A Adapter
 
+[![PyPI version](https://badge.fury.io/py/a2a-adapter.svg)](https://badge.fury.io/py/a2a-adapter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-**Open Source A2A Protocol Adapter SDK for Different Agent Frameworks**
+**🚀 Open Source A2A Protocol Adapter SDK - Make Any Agent Framework A2A-Compatible in 3 Lines**
 
-A Python SDK that enables seamless integration of various agent frameworks (n8n, CrewAI, LangChain, etc.) with the [A2A (Agent-to-Agent) Protocol](https://github.com/a2a-protocol/a2a-protocol). Build interoperable AI agent systems that can communicate across different platforms and frameworks.
+A Python SDK that enables seamless integration of various agent frameworks (n8n, CrewAI, LangChain, etc.) with the [A2A (Agent-to-Agent) Protocol](https://github.com/a2aproject/A2A). Build interoperable AI agent systems that can communicate across different platforms and frameworks.
+
+**✨ Key Benefits:**
+
+- 🔌 **3-line setup** - Expose any agent as A2A-compliant
+- 🌐 **Framework agnostic** - Works with n8n, CrewAI, LangChain, and custom agents
+- 🌊 **Streaming support** - Built-in streaming for real-time responses
+- 🎯 **Production ready** - Type-safe, well-tested, and actively maintained
 
 ## Features
 
@@ -42,6 +51,14 @@ A Python SDK that enables seamless integration of various agent frameworks (n8n,
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed design documentation.
 
+## Documentation
+
+- 🚀 Quick Start: [QUICKSTART.md](QUICKSTART.md)
+- 🧪 Examples: [examples/](examples/)
+- 🛠 Debug & Advanced Usage: [GETTING_STARTED_DEBUG.md](GETTING_STARTED_DEBUG.md)
+- 🧠 Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- 🤝 Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ## Installation
 
 ### Basic Installation
@@ -72,39 +89,17 @@ pip install a2a-adapter[all]
 pip install a2a-adapter[dev]
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
-### 🚀 Easy Start with Examples
+**Get started in 5 minutes!** See [QUICKSTART.md](QUICKSTART.md) for detailed guide.
 
-For the fastest way to get started, use the included examples:
-
-```bash
-# Clone and setup
-git clone <repository>
-cd a2a-adapter
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -e .
-
-# Start an agent
-./run_agent.sh n8n        # N8n workflow agent
-./run_agent.sh crewai     # CrewAI agent
-./run_agent.sh langchain  # LangChain agent
-
-# Stop with Ctrl+C
-```
-
-**Environment Variables:**
+### Install
 
 ```bash
-export N8N_WEBHOOK_URL="https://your-n8n.com/webhook/your-workflow"
+pip install a2a-adapter
 ```
 
-### 📝 Manual Setup
-
-### 1. N8n Workflow Agent
-
-Expose an n8n workflow as an A2A agent:
+### Your First Agent (3 Lines!)
 
 ```python
 import asyncio
@@ -112,123 +107,65 @@ from a2a_adapter import load_a2a_agent, serve_agent
 from a2a.types import AgentCard
 
 async def main():
-    # Load adapter
     adapter = await load_a2a_agent({
         "adapter": "n8n",
-        "webhook_url": "https://n8n.example.com/webhook/math",
-        "timeout": 30
+        "webhook_url": "https://your-n8n.com/webhook/workflow"
     })
-
-    # Define agent card
-    card = AgentCard(
-        name="Math Agent",
-        description="Performs mathematical calculations via n8n"
+    serve_agent(
+        agent_card=AgentCard(name="My Agent", description="..."),
+        adapter=adapter
     )
-
-    # Start server
-    serve_agent(agent_card=card, adapter=adapter, port=9000)
 
 asyncio.run(main())
 ```
 
-### 2. CrewAI Agent
+**That's it!** Your agent is now A2A-compatible and ready to communicate with other A2A agents.
 
-Expose a CrewAI crew as an A2A agent:
+👉 **[Read the full Quick Start Guide →](QUICKSTART.md)**
+
+## 📖 Usage Examples
+
+### n8n Workflow → A2A Agent
 
 ```python
-import asyncio
-from crewai import Crew, Agent, Task
-from a2a_adapter import load_a2a_agent, serve_agent
-from a2a.types import AgentCard
-
-# Create your crew
-crew = Crew(
-    agents=[...],
-    tasks=[...],
-    verbose=True
-)
-
-async def main():
-    adapter = await load_a2a_agent({
-        "adapter": "crewai",
-        "crew": crew
-    })
-
-    card = AgentCard(
-        name="Research Crew",
-        description="Multi-agent research team"
-    )
-
-    serve_agent(agent_card=card, adapter=adapter, port=8001)
-
-asyncio.run(main())
+adapter = await load_a2a_agent({
+    "adapter": "n8n",
+    "webhook_url": "https://n8n.example.com/webhook/math"
+})
 ```
 
-### 3. LangChain Agent (with Streaming)
-
-Expose a LangChain chain with streaming support:
+### CrewAI Crew → A2A Agent
 
 ```python
-import asyncio
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from a2a_adapter import load_a2a_agent, serve_agent
-from a2a.types import AgentCard
-
-# Create chain
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant."),
-    ("user", "{input}")
-])
-llm = ChatOpenAI(model="gpt-4o-mini", streaming=True)
-chain = prompt | llm
-
-async def main():
-    adapter = await load_a2a_agent({
-        "adapter": "langchain",
-        "runnable": chain,
-        "input_key": "input"
-    })
-
-    card = AgentCard(
-        name="Chat Agent",
-        description="Streaming chat agent powered by GPT-4"
-    )
-
-    serve_agent(agent_card=card, adapter=adapter, port=8002)
-
-asyncio.run(main())
+adapter = await load_a2a_agent({
+    "adapter": "crewai",
+    "crew": your_crew_instance
+})
 ```
 
-### 4. Custom Adapter
-
-Create a custom agent with any async function:
+### LangChain Chain → A2A Agent (with Streaming)
 
 ```python
-import asyncio
-from a2a_adapter import load_a2a_agent, serve_agent
-from a2a.types import AgentCard
-
-async def my_agent_function(inputs: dict) -> str:
-    """Your custom agent logic."""
-    message = inputs["message"]
-    return f"Echo: {message}"
-
-async def main():
-    adapter = await load_a2a_agent({
-        "adapter": "callable",
-        "callable": my_agent_function
-    })
-
-    card = AgentCard(
-        name="Echo Agent",
-        description="Simple echo agent"
-    )
-
-    serve_agent(agent_card=card, adapter=adapter, port=8003)
-
-asyncio.run(main())
+adapter = await load_a2a_agent({
+    "adapter": "langchain",
+    "runnable": your_chain,
+    "input_key": "input"
+})
 ```
+
+### Custom Function → A2A Agent
+
+```python
+async def my_agent(inputs: dict) -> str:
+    return f"Processed: {inputs['message']}"
+
+adapter = await load_a2a_agent({
+    "adapter": "callable",
+    "callable": my_agent
+})
+```
+
+📚 **[View all examples →](examples/)**
 
 ## Advanced Usage
 
@@ -484,20 +421,27 @@ Check if this adapter supports streaming responses.
 | **AutoGen**         | -                       | -           | 🔜 Planned |
 | **Semantic Kernel** | -                       | -           | 🔜 Planned |
 
-## Contributing
+## 🤝 Contributing
 
-We welcome contributions! To add support for a new framework:
+We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help makes this project better.
 
-1. Create `a2a_adapter/integrations/{framework}.py`
-2. Implement a class extending `BaseAgentAdapter`
-3. Add to `loader.py` factory function
-4. Update `integrations/__init__.py`
-5. Add optional dependency to `pyproject.toml`
-6. Create an example in `examples/`
-7. Add tests in `tests/`
-8. Update this README
+**Ways to contribute:**
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed guidance.
+- 🐛 **Report bugs** - Help us improve by reporting issues
+- 💡 **Suggest features** - Share your ideas for new adapters or improvements
+- 🔧 **Add adapters** - Integrate new agent frameworks (AutoGen, Semantic Kernel, etc.)
+- 📝 **Improve docs** - Make documentation clearer and more helpful
+- 🧪 **Write tests** - Increase test coverage and reliability
+
+**Quick start contributing:**
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`pytest`)
+5. Submit a pull request
+
+📖 **[Read our Contributing Guide →](CONTRIBUTING.md)** for detailed instructions, coding standards, and development setup.
 
 ## Roadmap
 
@@ -548,12 +492,31 @@ Built with ❤️ by [HYBRO AI](https://hybro.ai)
 
 Powered by the [A2A Protocol](https://github.com/a2a-protocol/a2a-protocol)
 
-## Support
+## 💬 Community & Support
 
-- 📚 [Documentation](https://github.com/hybro-ai/a2a-adapter)
-- 🐛 [Issue Tracker](https://github.com/hybro-ai/a2a-adapter/issues)
-- 💬 [Discussions](https://github.com/hybro-ai/a2a-adapter/discussions)
+- 📚 **[Full Documentation](README.md)** - Complete API reference and guides
+- 🚀 **[Quick Start Guide](QUICKSTART.md)** - Get started in 5 minutes
+- 🏗️ **[Architecture Guide](ARCHITECTURE.md)** - Deep dive into design decisions
+- 🐛 **[Report Issues](https://github.com/hybro-ai/a2a-adapter/issues)** - Found a bug? Let us know!
+- 💬 **[Discussions](https://github.com/hybro-ai/a2a-adapter/discussions)** - Ask questions and share ideas
+- 🤝 **[Contributing Guide](CONTRIBUTING.md)** - Want to contribute? Start here!
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ by [HYBRO AI](https://hybro.ai)
+- Powered by the [A2A Protocol](https://github.com/a2a-protocol/a2a-protocol)
+- Thanks to all [contributors](https://github.com/hybro-ai/a2a-adapter/graphs/contributors) who make this project better!
 
 ---
 
-**Star ⭐ this repo if you find it useful!**
+<div align="center">
+
+**⭐ Star this repo if you find it useful! ⭐**
+
+[⬆ Back to Top](#a2a-adapter)
+
+</div>
