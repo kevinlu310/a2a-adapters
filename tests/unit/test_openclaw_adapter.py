@@ -776,6 +776,210 @@ class TestOpenClawAdapterDeleteTask:
         await adapter.close()
 
 
+class TestOpenClawAdapterTTLCleanup:
+    """Tests for TTL-based task cleanup."""
+
+    def test_ttl_defaults(self):
+        """Test default TTL configuration."""
+        adapter = OpenClawAgentAdapter(async_mode=True)
+        
+        assert adapter._task_ttl == 3600  # 1 hour default
+        assert adapter._cleanup_interval == 300  # 5 minutes default
+        assert adapter._cleanup_task is None  # Not started until first handle()
+
+    def test_ttl_can_be_disabled(self):
+        """Test that TTL can be disabled by setting to None."""
+        adapter = OpenClawAgentAdapter(async_mode=True, task_ttl_seconds=None)
+        
+        assert adapter._task_ttl is None
+
+    def test_ttl_custom_values(self):
+        """Test custom TTL configuration."""
+        adapter = OpenClawAgentAdapter(
+            async_mode=True,
+            task_ttl_seconds=7200,
+            cleanup_interval_seconds=600,
+        )
+        
+        assert adapter._task_ttl == 7200
+        assert adapter._cleanup_interval == 600
+
+    @pytest.mark.asyncio
+    async def test_cleanup_task_starts_on_first_handle(self):
+        """Test that cleanup task starts lazily on first handle()."""
+        adapter = OpenClawAgentAdapter(async_mode=True, task_ttl_seconds=3600)
+        
+        # Cleanup task should not be started yet
+        assert adapter._cleanup_task is None
+        
+        # Mock subprocess
+        async def mock_create_subprocess(*args, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 0
+            
+            async def communicate():
+                return (json.dumps(make_openclaw_output("response")).encode(), b"")
+            
+            proc.communicate = communicate
+            return proc
+        
+        with patch("asyncio.create_subprocess_exec", mock_create_subprocess):
+            params = make_message_send_params("test")
+            await adapter.handle(params)
+            
+            # Cleanup task should now be started
+            assert adapter._cleanup_task is not None
+            assert not adapter._cleanup_task.done()
+        
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_completion_time_recorded(self):
+        """Test that task completion time is recorded for TTL tracking."""
+        adapter = OpenClawAgentAdapter(async_mode=True, task_ttl_seconds=3600)
+        
+        # Mock subprocess
+        async def mock_create_subprocess(*args, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 0
+            
+            async def communicate():
+                return (json.dumps(make_openclaw_output("response")).encode(), b"")
+            
+            proc.communicate = communicate
+            return proc
+        
+        with patch("asyncio.create_subprocess_exec", mock_create_subprocess):
+            params = make_message_send_params("test")
+            task = await adapter.handle(params)
+            
+            # Wait for completion
+            await asyncio.sleep(0.1)
+            
+            # Completion time should be recorded
+            assert task.id in adapter._task_completion_times
+        
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_removes_expired_tasks(self):
+        """Test that cleanup removes tasks older than TTL."""
+        # Use very short TTL for testing
+        adapter = OpenClawAgentAdapter(
+            async_mode=True,
+            task_ttl_seconds=1,  # 1 second TTL
+            cleanup_interval_seconds=60,  # Don't auto-run during test
+        )
+        
+        # Mock subprocess
+        async def mock_create_subprocess(*args, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 0
+            
+            async def communicate():
+                return (json.dumps(make_openclaw_output("response")).encode(), b"")
+            
+            proc.communicate = communicate
+            return proc
+        
+        with patch("asyncio.create_subprocess_exec", mock_create_subprocess):
+            params = make_message_send_params("test")
+            task = await adapter.handle(params)
+            task_id = task.id
+            
+            # Wait for completion
+            await asyncio.sleep(0.1)
+            
+            # Task should exist
+            assert await adapter.get_task(task_id) is not None
+            
+            # Wait for TTL to expire
+            await asyncio.sleep(1.1)
+            
+            # Manually trigger cleanup
+            await adapter._cleanup_expired_tasks()
+            
+            # Task should be deleted
+            assert await adapter.get_task(task_id) is None
+            assert task_id not in adapter._task_completion_times
+        
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_does_not_remove_unexpired_tasks(self):
+        """Test that cleanup does not remove tasks within TTL."""
+        adapter = OpenClawAgentAdapter(
+            async_mode=True,
+            task_ttl_seconds=3600,  # 1 hour TTL
+            cleanup_interval_seconds=60,
+        )
+        
+        # Mock subprocess
+        async def mock_create_subprocess(*args, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 0
+            
+            async def communicate():
+                return (json.dumps(make_openclaw_output("response")).encode(), b"")
+            
+            proc.communicate = communicate
+            return proc
+        
+        with patch("asyncio.create_subprocess_exec", mock_create_subprocess):
+            params = make_message_send_params("test")
+            task = await adapter.handle(params)
+            task_id = task.id
+            
+            # Wait for completion
+            await asyncio.sleep(0.1)
+            
+            # Manually trigger cleanup
+            await adapter._cleanup_expired_tasks()
+            
+            # Task should still exist (TTL not expired)
+            assert await adapter.get_task(task_id) is not None
+        
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_no_cleanup_when_ttl_disabled(self):
+        """Test that cleanup does nothing when TTL is disabled."""
+        adapter = OpenClawAgentAdapter(
+            async_mode=True,
+            task_ttl_seconds=None,  # Disabled
+        )
+        
+        # Mock subprocess
+        async def mock_create_subprocess(*args, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 0
+            
+            async def communicate():
+                return (json.dumps(make_openclaw_output("response")).encode(), b"")
+            
+            proc.communicate = communicate
+            return proc
+        
+        with patch("asyncio.create_subprocess_exec", mock_create_subprocess):
+            params = make_message_send_params("test")
+            task = await adapter.handle(params)
+            task_id = task.id
+            
+            # Wait for completion
+            await asyncio.sleep(0.1)
+            
+            # Completion time should NOT be recorded when TTL is disabled
+            assert task_id not in adapter._task_completion_times
+            
+            # Cleanup should be a no-op
+            await adapter._cleanup_expired_tasks()
+            
+            # Task should still exist
+            assert await adapter.get_task(task_id) is not None
+        
+        await adapter.close()
+
+
 class TestOpenClawAdapterSyncMode:
     """Tests for synchronous mode."""
 
@@ -906,5 +1110,7 @@ class TestOpenClawAdapterLoader:
         assert adapter.session_id.startswith("a2a-")
         assert adapter.agent_id is None
         assert adapter.thinking == "low"
-        assert adapter.timeout == 300
+        assert adapter.timeout == 600
         assert adapter.openclaw_path == "openclaw"
+        
+        await adapter.close()

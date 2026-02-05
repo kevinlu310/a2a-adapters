@@ -20,6 +20,7 @@ from asyncio.subprocess import PIPE, Process as AsyncProcess
 import json
 import logging
 import re
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -94,12 +95,12 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
 
     **Memory Considerations (Async Mode)**:
 
-    When using InMemoryTaskStore (the default), completed tasks remain in memory
-    indefinitely. For production use, either:
+    When using InMemoryTaskStore (the default), completed tasks are automatically
+    cleaned up after `task_ttl_seconds` (default: 1 hour). You can also:
 
-    1. Call delete_task() after retrieving completed tasks to free memory
+    1. Call delete_task() after retrieving completed tasks to free memory immediately
     2. Use DatabaseTaskStore for persistent storage with external cleanup
-    3. Implement a periodic cleanup routine for old completed tasks
+    3. Set task_ttl_seconds=None to disable auto-cleanup (manual cleanup only)
 
     Example:
         >>> adapter = OpenClawAgentAdapter(
@@ -123,6 +124,8 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
         env_vars: Dict[str, str] | None = None,
         async_mode: bool = True,
         task_store: "TaskStore | None" = None,
+        task_ttl_seconds: int | None = 3600,
+        cleanup_interval_seconds: int = 300,
     ):
         """
         Initialize the OpenClaw adapter.
@@ -134,7 +137,7 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
                       provided, uses the default agent.
             thinking: Thinking level for the agent. Valid values:
                       off, minimal, low, medium, high, xhigh. Default: "low".
-            timeout: Command timeout in seconds (default: 300).
+            timeout: Command timeout in seconds (default: 600).
             openclaw_path: Path to the openclaw binary (default: "openclaw").
             working_directory: Working directory for the subprocess. If not
                                provided, uses the current directory.
@@ -143,6 +146,12 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
                         in background. If False, block until command completes.
             task_store: Optional TaskStore for persisting task state. If not
                         provided and async_mode is True, uses InMemoryTaskStore.
+            task_ttl_seconds: Time-to-live for completed tasks in seconds. After
+                              this duration, completed/failed/canceled tasks are
+                              automatically deleted. Set to None to disable
+                              auto-cleanup. Default: 3600 (1 hour).
+            cleanup_interval_seconds: How often to run the cleanup routine in
+                                      seconds. Default: 300 (5 minutes).
         """
         # Validate thinking level
         if thinking not in VALID_THINKING_LEVELS:
@@ -170,6 +179,12 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
         self._push_configs: Dict[str, PushNotificationConfig] = {}
         self._http_client: httpx.AsyncClient | None = None
 
+        # TTL-based cleanup configuration
+        self._task_ttl = task_ttl_seconds
+        self._cleanup_interval = cleanup_interval_seconds
+        self._task_completion_times: Dict[str, float] = {}  # task_id -> completion timestamp
+        self._cleanup_task: asyncio.Task[None] | None = None
+
         # Initialize task store for async mode
         if async_mode:
             if not _HAS_TASK_STORE:
@@ -178,6 +193,8 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
                     "Install with: pip install a2a-sdk"
                 )
             self.task_store: "TaskStore" = task_store or InMemoryTaskStore()
+            # Note: cleanup task is started lazily on first handle() call
+            # to avoid requiring a running event loop at init time
         else:
             self.task_store = task_store  # type: ignore
 
@@ -222,6 +239,9 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
         4. Starts a background coroutine to execute the command
         5. Returns the Task immediately
         """
+        # Start cleanup loop lazily (requires running event loop)
+        self._ensure_cleanup_task_started()
+
         # Generate IDs
         task_id = str(uuid.uuid4())
         context_id = self._extract_context_id(params) or str(uuid.uuid4())
@@ -282,6 +302,76 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
 
         return task
 
+    # ---------- TTL-based Cleanup ----------
+
+    def _ensure_cleanup_task_started(self) -> None:
+        """Start the cleanup task if TTL is enabled and not already running."""
+        if (
+            self.async_mode
+            and self._task_ttl is not None
+            and self._task_ttl > 0
+            and self._cleanup_task is None
+        ):
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+    async def _cleanup_loop(self) -> None:
+        """
+        Background loop that periodically cleans up expired tasks.
+        
+        Runs every cleanup_interval_seconds and removes tasks that have been
+        in a terminal state for longer than task_ttl_seconds.
+        """
+        while True:
+            try:
+                await asyncio.sleep(self._cleanup_interval)
+                await self._cleanup_expired_tasks()
+            except asyncio.CancelledError:
+                logger.debug("Cleanup loop cancelled")
+                break
+            except Exception as e:
+                # Log but don't crash the cleanup loop
+                logger.error("Error in cleanup loop: %s", e)
+
+    async def _cleanup_expired_tasks(self) -> None:
+        """Remove tasks that have exceeded their TTL."""
+        if self._task_ttl is None:
+            return
+
+        now = time.time()
+        expired_task_ids = [
+            task_id
+            for task_id, completion_time in list(self._task_completion_times.items())
+            if now - completion_time > self._task_ttl
+        ]
+
+        if not expired_task_ids:
+            return
+
+        deleted_count = 0
+        for task_id in expired_task_ids:
+            try:
+                await self.task_store.delete(task_id)
+                self._task_completion_times.pop(task_id, None)
+                deleted_count += 1
+                logger.debug("Auto-deleted expired task %s", task_id)
+            except Exception as e:
+                # Task may already be deleted or store may have issues
+                logger.debug("Failed to delete expired task %s: %s", task_id, e)
+                # Still remove from tracking to avoid repeated attempts
+                self._task_completion_times.pop(task_id, None)
+
+        if deleted_count > 0:
+            logger.info(
+                "Task cleanup: removed %d expired tasks, %d remaining",
+                deleted_count,
+                len(self._task_completion_times),
+            )
+
+    def _record_task_completion(self, task_id: str) -> None:
+        """Record the completion time of a task for TTL tracking."""
+        if self._task_ttl is not None:
+            self._task_completion_times[task_id] = time.time()
+
     async def _execute_command_with_timeout(
         self,
         task_id: str,
@@ -339,6 +429,9 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
                 ),
             )
             await self.task_store.save(timeout_task)
+
+            # Record completion time for TTL cleanup
+            self._record_task_completion(task_id)
 
             # Send push notification for timeout failure
             await self._send_push_notification(task_id, timeout_task)
@@ -399,6 +492,9 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
             await self.task_store.save(completed_task)
             logger.debug("Task %s completed successfully", task_id)
 
+            # Record completion time for TTL cleanup
+            self._record_task_completion(task_id)
+
             # Send push notification for completion
             await self._send_push_notification(task_id, completed_task)
 
@@ -434,6 +530,9 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
             )
 
             await self.task_store.save(failed_task)
+
+            # Record completion time for TTL cleanup
+            self._record_task_completion(task_id)
 
             # Send push notification for failure
             await self._send_push_notification(task_id, failed_task)
@@ -1130,6 +1229,9 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
             await self.task_store.save(canceled_task)
             logger.debug("Task %s marked as canceled", task_id)
 
+            # Record completion time for TTL cleanup
+            self._record_task_completion(task_id)
+
             # Send push notification for cancellation
             await self._send_push_notification(task_id, canceled_task)
 
@@ -1141,6 +1243,14 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
 
     async def close(self) -> None:
         """Close the adapter and cancel pending background tasks."""
+        # Cancel cleanup task first
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass  # Expected
+
         # Mark all tasks as cancelled to prevent state updates
         for task_id in self._background_tasks:
             self._cancelled_tasks.add(task_id)
@@ -1167,6 +1277,7 @@ class OpenClawAgentAdapter(BaseAgentAdapter):
         self._background_processes.clear()
         self._cancelled_tasks.clear()
         self._push_configs.clear()
+        self._task_completion_times.clear()
 
         # Close HTTP client
         if self._http_client:

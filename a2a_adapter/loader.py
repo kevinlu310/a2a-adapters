@@ -32,7 +32,8 @@ async def load_a2a_agent(config: Dict[str, Any]) -> BaseAgentAdapter:
                             optional 'supports_streaming'
                 - openclaw: optional 'session_id', 'agent_id', 'thinking',
                             'timeout', 'openclaw_path', 'working_directory',
-                            'env_vars', 'async_mode', 'task_store'
+                            'env_vars', 'async_mode', 'task_store',
+                            'task_ttl_seconds', 'cleanup_interval_seconds'
 
     Returns:
         Configured BaseAgentAdapter instance
@@ -186,12 +187,14 @@ async def load_a2a_agent(config: Dict[str, Any]) -> BaseAgentAdapter:
             session_id=config.get("session_id"),
             agent_id=config.get("agent_id"),
             thinking=config.get("thinking", "low"),
-            timeout=config.get("timeout", 300),
+            timeout=config.get("timeout", 600),
             openclaw_path=config.get("openclaw_path", "openclaw"),
             working_directory=config.get("working_directory"),
             env_vars=config.get("env_vars"),
             async_mode=config.get("async_mode", True),
             task_store=config.get("task_store"),
+            task_ttl_seconds=config.get("task_ttl_seconds", 3600),
+            cleanup_interval_seconds=config.get("cleanup_interval_seconds", 300),
         )
 
     else:
