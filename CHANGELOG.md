@@ -4,6 +4,11 @@
 - Fixed: broken Pypi links
 
 ## [0.1.4] - 2026-1-22
-- Added: Init adaptor for lang graph
-- Added: Task support for crew ai adaptor
+- Added: Init adapter for lang graph
+- Added: Task support for crew ai adapter
+- Added: More unit tests
+
+## [0.1.5] - 2026-2-4
+- Added: OpenClaw adapter
+- Added: Push notification support
 - Added: More unit tests
